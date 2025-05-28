@@ -14,67 +14,112 @@ app.use(express.json());
 const USER_ID =  "123"
 
 const falAiModel = new FalAIModel();
-app.post("/ai/training" , async(req ,res) =>{
-    try {
-        const parsedBody = TrainModel.safeParse(req.body);
-        if (!parsedBody.success) {
-          res.status(411).json({
-            message: "Input incorrect",
-            error: parsedBody.error,
-          });
-          return;
-        }
-    
-    
-    
-        const data = await prismaClient.model.create({
-          data: {
-            name: parsedBody.data.name,
-            type: parsedBody.data.type,
-            age: parsedBody.data.age,
-            ethinicity: parsedBody.data.ethinicity,
-            eyeColor: parsedBody.data.eyeColor,
-            bald: parsedBody.data.bald,
-            userId: USER_ID,
-            zipUrl: parsedBody.data.zipUrl,
-            // falAiRequestId: request_id,
-          },
-        });
-    
-        res.json({
-          modelId: data.id,
-        });
-      } catch (error) {
-        console.error("Error in /ai/training:", error);
-        res.status(500).json({
-          message: "Training failed",
-          error: error instanceof Error ? error.message : "Unknown error",
-        });
-      }
-    
-})
 
-app.post("/ai/generate" , async(req ,res) =>{
-    
- const parsedBody = GenerateImage.safeParse(req.body)
-
- if(!parsedBody.success){
-    res.status(411).json({
-        message : "Input incorrect"
-    })
-    return
- }
- const data = await prismaClient.outputImages.create({
-    data : {
-        prompt: parsedBody.data.prompt,
-        userId: USER_ID,
-        modelId: parsedBody.data.modelId,
-        imageUrl: "",
-        // falAiRequestId: request_id,
+app.post("/ai/training",  async (req, res) => {
+  try {
+    const parsedBody = TrainModel.safeParse(req.body);
+    if (!parsedBody.success) {
+      res.status(411).json({
+        message: "Input incorrect",
+        error: parsedBody.error,
+      });
+      return;
     }
- })
-    
-})
+
+    const { request_id, response_url } = await falAiModel.trainModel(
+      parsedBody.data.zipUrl,
+      parsedBody.data.name
+    );
+
+    const data = await prismaClient.model.create({
+      data: {
+        name: parsedBody.data.name,
+        type: parsedBody.data.type,
+        age: parsedBody.data.age,
+        ethinicity: parsedBody.data.ethinicity,
+        eyeColor: parsedBody.data.eyeColor,
+        bald: parsedBody.data.bald,
+        userId: USER_ID,
+        zipUrl: parsedBody.data.zipUrl,
+        falAiRequestId: request_id,
+      },
+    });
+
+    res.json({
+      modelId: data.id,
+    });
+  } catch (error) {
+    console.error("Error in /ai/training:", error);
+    res.status(500).json({
+      message: "Training failed",
+      error: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+});
+
+
+app.post("/ai/generate",  async (req, res) => {
+  const parsedBody = GenerateImage.safeParse(req.body);
+
+  if (!parsedBody.success) {
+    res.status(411).json({});
+    return;
+  }
+
+  const model = await prismaClient.model.findUnique({
+    where: {
+      id: parsedBody.data.modelId,
+    },
+  });
+
+  if (!model || !model.tensorPath) {
+    res.status(411).json({
+      message: "Model not found",
+    });
+    return;
+  }
+  // check if the user has enough credits
+  const credits = await prismaClient.userCredit.findUnique({
+    where: {
+      userId: USER_ID,
+    },
+  });
+
+  // if ((credits?.amount ?? 0) < IMAGE_GEN_CREDITS) {
+  //   res.status(411).json({
+  //     message: "Not enough credits",
+  //   });
+  //   return;
+  // }
+
+  const { request_id, response_url } = await falAiModel.generateImage(
+    parsedBody.data.prompt,
+    model.tensorPath
+  );
+
+  const data = await prismaClient.outputImages.create({
+    data: {
+      prompt: parsedBody.data.prompt,
+      userId: USER_ID,
+      modelId: parsedBody.data.modelId,
+      imageUrl: "",
+      falAiRequestId: request_id,
+    },
+  });
+
+  // await prismaClient.userCredit.update({
+  //   where: {
+  //     userId: req.userId!,
+  //   },
+  //   data: {
+  //     amount: { decrement: IMAGE_GEN_CREDITS },
+  //   },
+  // });
+
+  res.json({
+    imageId: data.id,
+  });
+});
 
 app.post("/ai/pack/generate" , async(req ,res) =>{
     const parsedBody = GenerateImagesFromPack.safeParse(req.body)
