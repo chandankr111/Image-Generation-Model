@@ -2,9 +2,10 @@ import express from "express"
 import {TrainModel , GenerateImage , GenerateImagesFromPack } from "common/types"
 import { prismaClient } from "db1"
 import { fal } from "@fal-ai/client"
-// import { falAIModel } from "./models/FalAIModel"
+
 import { S3Client , write, s3 } from "bun"
 import { FalAIModel } from "./models/FalAIModel"
+
 
 
  const PORT = process.env.PORT || 8080 ;
@@ -14,6 +15,25 @@ app.use(express.json());
 const USER_ID =  "123"
 
 const falAiModel = new FalAIModel();
+ 
+app.get("/pre-signed-url", async (req, res) => {
+  const key = `models/${Date.now()}_${Math.random()}.zip`;
+  const url = S3Client.presign(key, {
+    method: "PUT",
+    accessKeyId: process.env.S3_ACCESS_KEY,
+    secretAccessKey: process.env.S3_SECRET_KEY,
+    endpoint: process.env.ENDPOINT,
+    bucket: process.env.BUCKET_NAME,
+    expiresIn: 60 * 5,
+    type: "application/zip",
+  });
+
+  res.json({
+    url,
+    key,
+  });
+});
+
 
 app.post("/ai/training",  async (req, res) => {
   try {
@@ -25,6 +45,8 @@ app.post("/ai/training",  async (req, res) => {
       });
       return;
     }
+
+
 
     const { request_id, response_url } = await falAiModel.trainModel(
       parsedBody.data.zipUrl,
@@ -79,6 +101,7 @@ app.post("/ai/generate",  async (req, res) => {
     return;
   }
   // check if the user has enough credits
+
   const credits = await prismaClient.userCredit.findUnique({
     where: {
       userId: USER_ID,
@@ -121,7 +144,7 @@ app.post("/ai/generate",  async (req, res) => {
   });
 });
 
-app.post("/ai/pack/generate" , async(req ,res) =>{
+app.post("/pack/generate" , async(req ,res) =>{
     const parsedBody = GenerateImagesFromPack.safeParse(req.body)
 
     if(!parsedBody.success){
@@ -130,18 +153,41 @@ app.post("/ai/pack/generate" , async(req ,res) =>{
         })
         return;
     }
+  
+
+    const model = await prismaClient.model.findFirst({
+      where: {
+        id: parsedBody.data.modelId,
+      },
+    });
+  
+    if (!model) {
+      res.status(411).json({
+        message: "Model not found",
+      });
+      return;
+    }
+
     const prompts = await prismaClient.packPrompts.findMany({
         where: {
             packId: parsedBody.data.packId
         }
-    })
+    });
+
+    let requestIds: { request_id: string }[] = await Promise.all(
+      prompts.map((prompt) =>
+        falAiModel.generateImage(prompt.prompt, model.tensorPath!)
+      )
+    );
+  
+
     const images = await prismaClient.outputImages.createMany({
-        data: prompts.map((prompt: { prompt: string }) => ({
+        data: prompts.map((prompt: { prompt: string } , index) => ({
             prompt: prompt.prompt,
             userId: USER_ID,
             modelId: parsedBody.data.modelId,
             imageUrl: "",
-            // falAiRequestId: request_id,
+            falAiRequestId: requestIds[index].request_id,
         }))
 
     })
@@ -181,13 +227,13 @@ app.get("/image/bulk" , async(req , res)=>{
   })
 })
 
-app.post("/fal-ai/webhook" , async(req , res)=>{
-    const parsedBody = req.body;
-    console.log(parsedBody);
-    res.json({
-        message: "Webhook received"
-    })
-})
+// app.post("/fal-ai/webhook" , async(req , res)=>{
+//     const parsedBody = req.body;
+//     console.log(parsedBody);
+//     res.json({
+//         message: "Webhook received"
+//     })
+// })
 
 app.post("/fal-ai/webhook/train", async (req, res) => {
   console.log("====================Received training webhook====================");
@@ -303,7 +349,7 @@ app.post("/fal-ai/webhook/train", async (req, res) => {
     }
   } else {
     // For any other status, keep it as Pending
-    console.log("Updating model status to: Pending");
+   
     await prismaClient.model.updateMany({
       where: {
         falAiRequestId: requestId,
@@ -320,8 +366,7 @@ app.post("/fal-ai/webhook/train", async (req, res) => {
 });
 
 app.post("/fal-ai/webhook/image", async (req, res) => {
-  console.log("fal-ai/webhook/image");
-  console.log(req.body);
+ 
   // update the status of the image in the DB
   const requestId = req.body.request_id;
 
