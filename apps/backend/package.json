@@ -14,8 +14,10 @@
   },
   "dependencies": {
     "@fal-ai/client": "^1.4.0",
+    "@types/cors": "^2.8.18",
     "@types/express": "^5.0.2",
     "common": "*",
+    "cors": "^2.8.5",
     "db1": "*",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",

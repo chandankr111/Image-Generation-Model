@@ -5,7 +5,7 @@ import { fal } from "@fal-ai/client"
 
 import { S3Client , write, s3 } from "bun"
 import { FalAIModel } from "./models/FalAIModel"
-
+import cors from "cors";
 
 
  const PORT = process.env.PORT || 8080 ;
@@ -13,7 +13,7 @@ import { FalAIModel } from "./models/FalAIModel"
 const app = express();
 app.use(express.json());
 const USER_ID =  "123"
-
+app.use(cors());
 const falAiModel = new FalAIModel();
  
 app.get("/pre-signed-url", async (req, res) => {
@@ -45,9 +45,6 @@ app.post("/ai/training",  async (req, res) => {
       });
       return;
     }
-
-
-
     const { request_id, response_url } = await falAiModel.trainModel(
       parsedBody.data.zipUrl,
       parsedBody.data.name

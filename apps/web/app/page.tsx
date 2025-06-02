@@ -1,12 +1,14 @@
-import Image, { type ImageProps } from "next/image";
-import { Button } from "@repo/ui/button";
-import styles from "./page.module.css";
-
+"use client"
+import React from "react";
+import Image from "next/image";
 
 export default function Home() {
-  return (
-    <div>
-      hii , there
-    </div>
-  );
+ 
+
+return (
+  <div>
+
+  </div>
+)
+ 
 }
