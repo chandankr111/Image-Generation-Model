@@ -15,52 +15,42 @@ import { BACKEND_URL, CLOUDFLARE_URL } from "@/app/config";
 import { cn } from "@/lib/utils";
 
 export function UploadModal({ onUploadDone }: { onUploadDone: (zipUrl: string) => void }) {
-  const handleUpload = async () => {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = "image/*";
-    input.multiple = true;
+    return(
+        <Card>
+            <CardContent className="flex flex-col items-center justify-center border-2 border-dashed border-zinc-200 dark:border">
+        <CloudUploadIcon className="w-16 h-16 text-zinc-500 dark:text-zinc-400"/>
 
-    input.onchange = async () => {
-      if (!input.files || input.files.length === 0) return;
-
-      try {
-        const zip = new JSZip();
-        for (const file of input.files) {
-          const content = await file.arrayBuffer();
-          zip.file(file.name, content);
-        }
-
-        const content = await zip.generateAsync({ type: "blob" });
-
-        const res = await axios.get(`${BACKEND_URL}/pre-signed-url`);
-        const url = res.data.url;
-        const key = res.data.key;
-
-        await axios.put(url, content, {
-          headers: {
-            "Content-Type": "application/zip",
-          },
-        });
-
-        onUploadDone(`${CLOUDFLARE_URL}/${key}`);
-      } catch (err) {
-        console.error("Upload failed", err);
-        alert("Upload failed. Please try again.");
+        <Button variant="outline" className="w-full" onClick={() => {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "image/*";
+  input.multiple = true;
+  input.onchange = async () => {
+    const zip = new JSZip();
+    const res = await axios.get(`${BACKEND_URL}/pre-signed-url`)
+    const url = res.data.url;
+     const key = res.data.key;
+    if (input.files) {
+      for (const file of input.files) {
+        const content = await file.arrayBuffer();
+        zip.file(file.name, content);
       }
-    };
+      const content = await zip.generateAsync({type: "blob"});
+      const formData = new FormData();
+      formData.append("file", content);
+      const res = await axios.put(
+        url, formData
+    );
+      onUploadDone(`${CLOUDFLARE_URL}/${key}`);
+    }
+}
+input.click();
+        }}> Select Files</Button>
 
-    input.click();
-  };
+            </CardContent>
+        </Card>
+    )
 
-  return (
-    <Card className="flex flex-col items-center justify-center border-2 border-dashed border-zinc-200 dark:border-zinc-800 rounded-lg p-4">
-      <CloudUploadIcon className="w-16 h-16 text-zinc-500 dark:text-zinc-400 mb-4" />
-      <Button variant="outline" className="w-full" onClick={handleUpload}>
-        Select File
-      </Button>
-    </Card>
-  );
 }
 
 function CloudUploadIcon(props: React.SVGProps<SVGSVGElement>) {

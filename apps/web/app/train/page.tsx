@@ -24,10 +24,10 @@ import { TrainModelInput } from "common/inferred"
 import axios from "axios"
 import { BACKEND_URL } from "../config"
 import { useRouter } from "next/navigation"
-// import { useAuth } from "@clerk/nextjs"
+import { useAuth } from "@clerk/nextjs"
 
 export default function Train() {
-    // const { getToken } = useAuth();
+    const { getToken } = useAuth();
     const [zipUrl, setZipUrl] = useState("");
     const [type, setType] = useState("Man")
     const [age, setAge] = useState<string>()
@@ -49,8 +49,12 @@ export default function Train() {
             name
         };
 
-        // const token = await getToken()
-        const response = await axios.post(`${BACKEND_URL}/ai/training`);
+        const token = await getToken()
+        const response = await axios.post(`${BACKEND_URL}/ai/training` , input , {
+            headers:{
+                token : `Bearer ${token} `
+            }
+        }  );
         router.push("/");
     }
 

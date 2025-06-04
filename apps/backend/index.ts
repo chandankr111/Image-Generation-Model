@@ -2,20 +2,20 @@ import express from "express"
 import {TrainModel , GenerateImage , GenerateImagesFromPack } from "common/types"
 import { prismaClient } from "db1"
 import { fal } from "@fal-ai/client"
-
-import { S3Client , write, s3 } from "bun"
+import { S3Client } from "bun";
 import { FalAIModel } from "./models/FalAIModel"
 import cors from "cors";
 
-
- const PORT = process.env.PORT || 8080 ;
- console.log(process.env.FAL_KEY);
+const PORT = process.env.PORT || 8080;
+console.log(process.env.FAL_KEY);
 const app = express();
 app.use(express.json());
-const USER_ID =  "123"
+const USER_ID = "123"
 app.use(cors());
 const falAiModel = new FalAIModel();
- 
+
+// Configure S3 client for R2
+
 app.get("/pre-signed-url", async (req, res) => {
   const key = `models/${Date.now()}_${Math.random()}.zip`;
   const url = S3Client.presign(key, {
@@ -33,7 +33,6 @@ app.get("/pre-signed-url", async (req, res) => {
     key,
   });
 });
-
 
 app.post("/ai/training",  async (req, res) => {
   try {
